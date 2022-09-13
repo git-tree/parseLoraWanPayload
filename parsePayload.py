@@ -878,6 +878,7 @@ def parseUpOrDown(PHYPayload=None, appskey=None, nwkskey=None):
 
 
 if __name__ == "__main__":
+    pass
     # appkey = "d6adc8dbee8e9f16086a98d588ae3d5a"
     # join_str = '000000000000000000A682EDB3E3F49450843982F23EA3'
     # parseJoin(join_str, appkey)
