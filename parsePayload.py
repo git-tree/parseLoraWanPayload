@@ -883,7 +883,7 @@ if __name__ == "__main__":
     # parseJoin(join_str, appkey)
     # joinAccept_str = '208D63224CA870750CC47975A14D87F112'
     # parseJoinAccept(joinAccept_str, appkey)
-    parseUpOrDown(
-        PHYPayload='604EA67300820200090476356D46',
-        nwkskey='44d5564cba6d2616b25d7ee911ecdb6d',
-        appskey='1ccb9aa91c878fe17790ca1b61e29511')
+    # parseUpOrDown(
+    #     PHYPayload='604EA67300820200090476356D46',
+    #     nwkskey='44d5564cba6d2616b25d7ee911ecdb6d',
+    #     appskey='1ccb9aa91c878fe17790ca1b61e29511')
