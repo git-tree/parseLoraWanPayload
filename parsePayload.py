@@ -54,6 +54,7 @@ def lorawan_aes128_cmac(key, msg):
     m = cmac.digest()
     # print(m[:4][::-1].hex())
     # print("验证mic", m[:4].hex())
+    print(m.hex())
     return {
         "mic": m[:4][::-1],
         "cmac": m
@@ -117,8 +118,6 @@ class parseMacCommand:
                 json_str_k = ''
                 json_str_v = {}
                 for k in keys:
-                    # print(k)
-                    # print(v[k])
                     if k == 'title':
                         json_str_k = '{}. {}'.format(index + 1, v[k])
                         if len(keys) <= 1:
@@ -128,9 +127,12 @@ class parseMacCommand:
                         del v[k]['self_value']
                         json_str_v[ks] = v[k]
                     elif k == 'Margin':
-                        ks = 'Margin : x{}'.format(v['Margin']['self_value'])
-                        del v[k]['self_value']
-                        json_str_v[ks] = v[k]
+                        if 'self_value' in v:
+                            ks = 'Margin : x{}'.format(v['Margin']['self_value'])
+                            del v[k]['self_value']
+                            json_str_v[ks] = v[k]
+                        else:
+                            json_str_v['Margin'] = v[k]
                     elif k == 'Battery':
                         json_str_v['Battery'] = v[k]
                     elif k == 'GwCnt':
@@ -425,7 +427,7 @@ class parseMacCommand:
                 EIRP_DwellTime['Uplink_DwellTime'] = EIRP_DwellTime_bin[3:4]
                 # codevalue:Max EIRP(dBm)
                 MaxEIRP_talbe = {
-                    '0': '8',
+                    '0': 8,
                     '1': 10,
                     '2': 12,
                     '3': 13,
@@ -447,6 +449,64 @@ class parseMacCommand:
                 TxParamSetupReq['EIRP_DwellTime'] = EIRP_DwellTime
                 youlist.append(TxParamSetupReq)
                 self.parse(macStr[4:])
+            elif self.confirmDown:
+                # A0
+                pass
+
+        if macStr[:2].upper() == '0A':
+            if self.confirmUp:
+                # 80
+                DlChannelAns = {}
+                DlChannelAns['title'] = 'DlChannelAns : 0x {} Uplink'.format(macStr[:2])
+                Status_title = macStr[:4][2:]
+                Status_bin = hexStr2Binbit(Status_title)
+
+                Status = {}
+                Status['self_value'] = Status_title
+                Status['RFU'] = Status_bin[:6]
+                Status['Data Rate Range OK'] = Status_bin[6:7]
+                Status['Channel Frequency OK'] = Status_bin[7:]
+                DlChannelAns['Status'] = Status
+                youlist.append(DlChannelAns)
+                self.parse(macStr[4:])
+            elif self.unConfirmDown:
+                # 60
+                DlChannelReq = {}
+                DlChannelReq['title'] = 'DlChannelReq : 0x {} Downlink'.format(macStr[:2])
+                DrRange_title = macStr[:12][10:]
+                print('DrRange_titleDrRange_titleDrRange_title', DrRange_title)
+                DrRange_bin = hexStr2Binbit(DrRange_title)
+
+                DrRange = {}
+                DrRange['self_value'] = DrRange_title
+                DrRange['MaxDR'] = binStr2int(DrRange_bin[:4])
+                DrRange['MinDR'] = binStr2int(DrRange_bin[4:])
+
+                DlChannelReq['ChIndex'] = macStr[:12][2:4]
+                DlChannelReq['Freq'] = hexstr2int(reverseHexStr(macStr[:12][4:10]))
+                DlChannelReq['DrRange'] = DrRange
+                youlist.append(DlChannelReq)
+                self.parse(macStr[12:])
+                pass
+            elif self.confirmDown:
+                # A0
+                pass
+        if macStr[:2].upper() == '0D':
+            if self.confirmUp:
+                # 80
+                DeviceTimeReq = {}
+                DeviceTimeReq['title'] = 'DeviceTimeReq : 0x {} Uplink'.format(macStr[:2])
+                youlist.append(DeviceTimeReq)
+                self.parse(macStr[2:])
+            elif self.unConfirmDown:
+                # 60:
+                DeviceTimeAns = {}
+                DeviceTimeAns['title'] = 'DeviceTimeAns : 0x {} Downlink'.format(macStr[:2])
+
+                DeviceTimeAns['GPS time'] = macStr[:12][2:10]
+                DeviceTimeAns['Fractional second'] = macStr[:12][10:]
+                youlist.append(DeviceTimeAns)
+                self.parse(macStr[12:])
             elif self.confirmDown:
                 # A0
                 pass
@@ -727,7 +787,7 @@ def parseUpOrDown(PHYPayload=None, appskey=None, nwkskey=None):
     checkMic = ''
     if nwkskey is not None:
         msg = bytearray.fromhex(MHDR + FHDR + FPort + FRMPayload)
-        print(msg, len(msg))
+        print("****checkMic****", msg, len(msg))
         B0 = bytearray(16)
         B0[0] = 0x49
         # Dir 上行为0x00，下行为0x01
@@ -780,7 +840,10 @@ def parseUpOrDown(PHYPayload=None, appskey=None, nwkskey=None):
     FHDR_FCtrl_show['ADR'] = True if ADR == '1' else False
     FHDR_FCtrl_show['ADRACKReq'] = ADRACKReq
     FHDR_FCtrl_show['ACK'] = True if ACK == '1' else False
-    FHDR_FCtrl_show['DL'] = DL
+    if isConfirmUp or isUnConfirmUp:
+        FHDR_FCtrl_show['RFU'] = DL
+    else:
+        FHDR_FCtrl_show['Fpending'] = True if DL == '1' else False
     FHDR_FCtrl_show['FOptsLen'] = binStr2int(FOptsLen)
     FHDR_show['FCtrl:{}'.format(FHDR_FCtrl)] = FHDR_FCtrl_show
 
@@ -818,9 +881,9 @@ if __name__ == "__main__":
     appkey = "d6adc8dbee8e9f16086a98d588ae3d5a"
     # join_str = '000000000000000000A682EDB3E3F49450843982F23EA3'
     # parseJoin(join_str, appkey)
-    # joinAccept_str = '2070E111A0F849E1BAE83F8C3D9EB331FCE26E09139E56513FE75C39715833BDB2'
+    # joinAccept_str = '208D63224CA870750CC47975A14D87F112'
     # parseJoinAccept(joinAccept_str, appkey)
     parseUpOrDown(
-        PHYPayload='805373AE00801C00022BFDC95E14',
-        nwkskey='7b11bc296b71995181b703638cba6ac8',
-        appskey='bf8dbbdbad462810adf287fd5add1ee3')
+        PHYPayload='604EA67300820200090476356D46',
+        nwkskey='44d5564cba6d2616b25d7ee911ecdb6d',
+        appskey='1ccb9aa91c878fe17790ca1b61e29511')
